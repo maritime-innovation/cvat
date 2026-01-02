@@ -7,7 +7,7 @@
 cp env.example .env
 ```
 
-2) 内容を編集。特にCVAT_DIR、DEPLOY_SAM_GPU、CVAT_TAILSCALE_IPには注意。
+2) .envの内容を編集。特にCVAT_DIR、DEPLOY_SAM_GPU、CVAT_TAILSCALE_IPには注意。
 ```bash
 # CVAT install location (optional)
 CVAT_DIR=/home/hoge/cvat

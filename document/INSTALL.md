@@ -43,3 +43,10 @@ curl -I http://xxx.xxx.xxx.xxx:8080/api/server/about | head -n 10
 ```
 
 5) サイトにアクセス（http://xxx.xxx.xxx.xxx:8080）
+
+6) もし全ての設定を消してまっさらな状態に戻したいときは掃除用スクリプトを実行する。
+```bash
+./cleanup_cvat_docker_interactive.sh
+```
+
+

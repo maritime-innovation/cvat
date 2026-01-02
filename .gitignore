@@ -77,3 +77,6 @@ cvat-ui/dist
 **/!.yarn/releases
 **/!.yarn/sdks
 **/!.yarn/versions
+
+# Ignore environment file
+.env

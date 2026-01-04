@@ -80,3 +80,4 @@ cvat-ui/dist
 
 # Ignore environment file
 .env
+.setup_state/

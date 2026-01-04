@@ -422,9 +422,6 @@ PY'
 need_cmd curl
 need_cmd jq
 
-# Strict SAM1 function name (Nuclio)
-SAM_FUNCTION_NAME="${SAM_FUNCTION_NAME:-pth-facebookresearch-sam-vit-h}"
-
 nuclio_get_fn_json() {
   nuctl get functions -n nuclio -o json 2>/dev/null || true
 }
@@ -439,15 +436,7 @@ nuclio_get_functions_table() {
 
 # exact name match (no JSON)
 nuclio_fn_exists() {
-  nuclio_get_functions_table | awk -v name="$SAM_FUNCTION_NAME" -F'\\|' '
-    NR <= 2 { next }  # skip header lines
-    {
-      # columns: 1=NAMESPACE, 2=NAME, 3=PROJECT, 4=STATE, ...
-      gsub(/^[ \t]+|[ \t]+$/, "", $2)
-      if ($2 == name) { found=1 }
-    }
-    END { exit(found ? 0 : 1) }
-  '
+  nuctl get function "$SAM_FUNCTION_NAME" -n nuclio >/dev/null 2>&1
 }
 
 # returns state string: ready/unhealthy/building/...
@@ -462,21 +451,16 @@ nuclio_fn_status() {
   '
 }
 
-log "SAM_FUNCTION_NAME=$SAM_FUNCTION_NAME"
+log "SAM_FUNCTION_NAME=[$SAM_FUNCTION_NAME]"
 
 nuclio_wait_fn_ready() {
   local tries="${1:-180}" sleep_s="${2:-2}"
-  local st=""
   for _ in $(seq 1 "$tries"); do
-    if ! nuclio_fn_exists; then
-      echo "missing"
-    else
-      st="$(nuclio_fn_status)"
-      echo "${st:-unknown}"
-      if echo "$st" | grep -qi '^ready$'; then
-        return 0
-      fi
+    if nuclio_fn_exists; then
+      echo "ready"
+      return 0
     fi
+    echo "missing"
     sleep "$sleep_s"
   done
   return 1

@@ -52,10 +52,10 @@ CVAT_VERSION_TAG="${CVAT_VERSION_TAG:-v2.54.0}"
 CVAT_HOST="${CVAT_HOST:-localhost}"
 
 # Git repo/ref to deploy from (fork + branch)
-CVAT_REPO_URL="${CVAT_REPO_URL:-https://github.com/maritime-innovation/cvat.git}"
-CVAT_GIT_REF="${CVAT_GIT_REF:-gbr/develop}"   # branch / tag / commit
+# Git repo/ref to deploy from (fork + branch)
+CVAT_REPO_URL="${CVAT_REPO_URL:-git@github.com:maritime-innovation/cvat.git}"
+CVAT_GIT_REF="${CVAT_GIT_REF:-gbr/develop}"
 CVAT_REMOTE_NAME="${CVAT_REMOTE_NAME:-origin}"
-
 
 # Strict SAM1 function name (Nuclio)
 SAM_FUNCTION_NAME="${SAM_FUNCTION_NAME:-pth-facebookresearch-sam-vit-h}"
@@ -222,7 +222,18 @@ fi
 ############################################
 # 4) Clone CVAT and checkout a known version (resumable)
 ############################################
+
+
 log "Cloning CVAT into: $CVAT_DIR"
+# --- SSH guard (only when repo already exists) ---
+if [ -d "$CVAT_DIR/.git" ]; then
+  ORIGIN_URL="$(git -C "$CVAT_DIR" remote get-url "$CVAT_REMOTE_NAME" 2>/dev/null || true)"
+  if echo "$ORIGIN_URL" | grep -q '^https://github.com/'; then
+    log "Git origin is HTTPS. Switching to SSH..."
+    git -C "$CVAT_DIR" remote set-url "$CVAT_REMOTE_NAME" "$CVAT_REPO_URL"
+  fi
+fi
+# --- clone or fetch ---
 if [ ! -d "$CVAT_DIR/.git" ]; then
   git clone "$CVAT_REPO_URL" "$CVAT_DIR"
 else

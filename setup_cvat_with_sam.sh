@@ -432,19 +432,38 @@ nuclio_get_fn_json() {
 # functions list accessor: supports different nuctl JSON shapes
 nuclio_list_expr='(.items // .functions // .Items // [])'
 
-nuclio_fn_exists() {
-  nuclio_get_fn_json | jq -e --arg NAME "$SAM_FUNCTION_NAME" \
-    "$nuclio_list_expr | any(.metadata.name? == \$NAME or .name? == \$NAME)" \
-    >/dev/null 2>&1
+nuclio_get_functions_table() {
+  # stable: you already see this table output
+  nuctl get functions -n nuclio 2>/dev/null || true
 }
 
-nuclio_fn_status() {
-  nuclio_get_fn_json | jq -r --arg NAME "$SAM_FUNCTION_NAME" \
-    "$nuclio_list_expr
-     | map(select(.metadata.name? == \$NAME or .name? == \$NAME))
-     | (.[0].status.state // .[0].status // .[0].statusState // \"\")" \
-    2>/dev/null | head -n1
+# exact name match (no JSON)
+nuclio_fn_exists() {
+  nuclio_get_functions_table | awk -v name="$SAM_FUNCTION_NAME" -F'\\|' '
+    NR <= 2 { next }  # skip header lines
+    {
+      # columns: 1=NAMESPACE, 2=NAME, 3=PROJECT, 4=STATE, ...
+      gsub(/^[ \t]+|[ \t]+$/, "", $2)
+      if ($2 == name) { found=1 }
+    }
+    END { exit(found ? 0 : 1) }
+  '
 }
+
+# returns state string: ready/unhealthy/building/...
+nuclio_fn_status() {
+  nuclio_get_functions_table | awk -v name="$SAM_FUNCTION_NAME" -F'\\|' '
+    NR <= 2 { next }
+    {
+      gsub(/^[ \t]+|[ \t]+$/, "", $2)
+      gsub(/^[ \t]+|[ \t]+$/, "", $4)
+      if ($2 == name) { print $4; exit 0 }
+    }
+  '
+}
+
+log "SAM_FUNCTION_NAME=$SAM_FUNCTION_NAME"
+
 nuclio_wait_fn_ready() {
   local tries="${1:-180}" sleep_s="${2:-2}"
   local st=""

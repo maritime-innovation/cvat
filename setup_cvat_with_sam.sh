@@ -359,11 +359,12 @@ state_set GROUPS "1"
 # - Default: create if missing; do NOT overwrite password if exists
 # - SYNC_ADMIN=1: always force password/flags to match .env
 log "Ensuring CVAT admin user exists..."
-docker exec -i cvat_server \
+docker exec -i \
   -e DJANGO_SUPERUSER_USERNAME="$DJANGO_SUPERUSER_USERNAME" \
   -e DJANGO_SUPERUSER_EMAIL="$DJANGO_SUPERUSER_EMAIL" \
   -e DJANGO_SUPERUSER_PASSWORD="$DJANGO_SUPERUSER_PASSWORD" \
   -e SYNC_ADMIN="$SYNC_ADMIN" \
+  cvat_server \
   bash -lc 'python3 manage.py shell << "PY"
 from django.contrib.auth import get_user_model
 import os
@@ -388,7 +389,6 @@ else:
         u.email = email
         changed = True
 
-    # Ensure flags (these are usually desired for admin)
     if not u.is_active:
         u.is_active = True; changed = True
     if not u.is_staff:
@@ -402,8 +402,9 @@ else:
 
     if changed:
         u.save()
-    print("superuser:", u.username, "created: False", "synced_password:" , sync, "changed:", changed)
+    print("superuser:", u.username, "created: False", "synced_password:", sync, "changed:", changed)
 PY'
+
 state_set ADMIN "1"
 
 log "Verifying users..."

@@ -429,26 +429,31 @@ nuclio_get_fn_json() {
   nuctl get functions -n nuclio -o json 2>/dev/null || true
 }
 
+# functions list accessor: supports different nuctl JSON shapes
+nuclio_list_expr='(.items // .functions // .Items // [])'
+
 nuclio_fn_exists() {
-  nuclio_get_fn_json | jq -e --arg NAME "$SAM_FUNCTION_NAME" '.items[]?.metadata.name == $NAME' >/dev/null 2>&1
+  nuclio_get_fn_json | jq -e --arg NAME "$SAM_FUNCTION_NAME" \
+    "$nuclio_list_expr | any(.metadata.name? == \$NAME or .name? == \$NAME)" \
+    >/dev/null 2>&1
 }
 
 nuclio_fn_status() {
-  # returns: "ready" / "unhealthy" / "building" / "" (unknown)
-  nuclio_get_fn_json | jq -r --arg NAME "$SAM_FUNCTION_NAME" '
-    .items[]? | select(.metadata.name == $NAME) |
-    (.status.state // .status // "")
-  ' 2>/dev/null | head -n1
+  nuclio_get_fn_json | jq -r --arg NAME "$SAM_FUNCTION_NAME" \
+    "$nuclio_list_expr
+     | map(select(.metadata.name? == \$NAME or .name? == \$NAME))
+     | (.[0].status.state // .[0].status // .[0].statusState // \"\")" \
+    2>/dev/null | head -n1
 }
-
 nuclio_wait_fn_ready() {
-  local tries="${1:-120}" sleep_s="${2:-2}"
-  for i in $(seq 1 "$tries"); do
+  local tries="${1:-180}" sleep_s="${2:-2}"
+  local st=""
+  for _ in $(seq 1 "$tries"); do
     if ! nuclio_fn_exists; then
       echo "missing"
     else
       st="$(nuclio_fn_status)"
-      echo "$st"
+      echo "${st:-unknown}"
       if echo "$st" | grep -qi '^ready$'; then
         return 0
       fi

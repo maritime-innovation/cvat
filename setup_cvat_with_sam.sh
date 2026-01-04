@@ -51,6 +51,12 @@ CVAT_DIR="${CVAT_DIR:-$HOME/cvat}"
 CVAT_VERSION_TAG="${CVAT_VERSION_TAG:-v2.54.0}"
 CVAT_HOST="${CVAT_HOST:-localhost}"
 
+# Git repo/ref to deploy from (fork + branch)
+CVAT_REPO_URL="${CVAT_REPO_URL:-https://github.com/maritime-innovation/cvat.git}"
+CVAT_GIT_REF="${CVAT_GIT_REF:-gbr/develop}"   # branch / tag / commit
+CVAT_REMOTE_NAME="${CVAT_REMOTE_NAME:-origin}"
+
+
 # Strict SAM1 function name (Nuclio)
 SAM_FUNCTION_NAME="${SAM_FUNCTION_NAME:-pth-facebookresearch-sam-vit-h}"
 
@@ -109,8 +115,7 @@ state_set() {
 
 # Compute a config signature for steps that should rerun when env changes
 compute_signature() {
-  # Avoid spaces/newlines in signature
-  echo "CVAT_VERSION_TAG=$CVAT_VERSION_TAG|NUCTL_VERSION=$NUCTL_VERSION|ALLOW_IP=$CVAT_ALLOW_IP_ACCESS|TAILSCALE_IP=$CVAT_TAILSCALE_IP|DEPLOY_SAM_GPU=$DEPLOY_SAM_GPU|CVAT_HOST=$CVAT_HOST"
+  echo "CVAT_REPO_URL=$CVAT_REPO_URL|CVAT_GIT_REF=$CVAT_GIT_REF|NUCTL_VERSION=$NUCTL_VERSION|ALLOW_IP=$CVAT_ALLOW_IP_ACCESS|TAILSCALE_IP=$CVAT_TAILSCALE_IP|DEPLOY_SAM_GPU=$DEPLOY_SAM_GPU|CVAT_HOST=$CVAT_HOST"
 }
 
 # Wait helpers
@@ -219,22 +224,41 @@ fi
 ############################################
 log "Cloning CVAT into: $CVAT_DIR"
 if [ ! -d "$CVAT_DIR/.git" ]; then
-  git clone https://github.com/cvat-ai/cvat.git "$CVAT_DIR"
+  git clone "$CVAT_REPO_URL" "$CVAT_DIR"
 else
-  log "CVAT repo already exists; fetching updates..."
-  git -C "$CVAT_DIR" fetch --all --tags
+  log "CVAT repo already exists; verifying remote..."
+  # Ensure the configured remote points to the fork (safe update)
+  if git -C "$CVAT_DIR" remote get-url "$CVAT_REMOTE_NAME" >/dev/null 2>&1; then
+    git -C "$CVAT_DIR" remote set-url "$CVAT_REMOTE_NAME" "$CVAT_REPO_URL"
+  else
+    git -C "$CVAT_DIR" remote add "$CVAT_REMOTE_NAME" "$CVAT_REPO_URL"
+  fi
+  log "Fetching updates from $CVAT_REMOTE_NAME..."
+  git -C "$CVAT_DIR" fetch "$CVAT_REMOTE_NAME" --prune
 fi
 
-# Checkout if needed (don’t destroy local changes)
-CURRENT_REF="$(git -C "$CVAT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-CURRENT_TAG="$(git -C "$CVAT_DIR" describe --tags --exact-match 2>/dev/null || true)"
-if [ "$CURRENT_TAG" != "$CVAT_VERSION_TAG" ]; then
-  log "Checking out CVAT tag: $CVAT_VERSION_TAG"
-  if ! git -C "$CVAT_DIR" checkout "$CVAT_VERSION_TAG"; then
-    die "git checkout failed (you may have local changes). Stash/commit or use a clean copy of CVAT_DIR."
-  fi
+# Ref checkout (safe: do not destroy local uncommitted changes)
+log "Checking out CVAT ref: $CVAT_GIT_REF"
+if ! git -C "$CVAT_DIR" diff --quiet || ! git -C "$CVAT_DIR" diff --cached --quiet; then
+  die "Working tree has local uncommitted changes. Commit/stash them before checkout."
+fi
+
+# Create local branch tracking remote branch if needed
+if git -C "$CVAT_DIR" show-ref --verify --quiet "refs/remotes/$CVAT_REMOTE_NAME/$CVAT_GIT_REF"; then
+  # CVAT_GIT_REF is a remote branch name that exists as origin/<name>
+  git -C "$CVAT_DIR" checkout -B "$CVAT_GIT_REF" "$CVAT_REMOTE_NAME/$CVAT_GIT_REF"
+elif git -C "$CVAT_DIR" show-ref --verify --quiet "refs/heads/$CVAT_GIT_REF"; then
+  # Local branch exists
+  git -C "$CVAT_DIR" checkout "$CVAT_GIT_REF"
 else
-  log "CVAT already at tag: $CVAT_VERSION_TAG"
+  # Could be tag/commit; try direct checkout
+  git -C "$CVAT_DIR" checkout "$CVAT_GIT_REF"
+fi
+
+# Optional: fast-forward pull if on a branch (safe)
+if git -C "$CVAT_DIR" symbolic-ref -q HEAD >/dev/null 2>&1; then
+  log "Updating branch with fast-forward only..."
+  git -C "$CVAT_DIR" pull --ff-only "$CVAT_REMOTE_NAME" "$CVAT_GIT_REF" || true
 fi
 
 ############################################

@@ -11,7 +11,6 @@ cp env.example .env
 ```bash
 # CVAT install location (optional)
 CVAT_DIR=/home/hoge/cvat
-CVAT_VERSION_TAG=v2.54.0
 CVAT_HOST=localhost
 
 # Django superuser (required for non-interactive createsuperuser)

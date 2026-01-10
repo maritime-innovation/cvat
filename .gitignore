@@ -79,5 +79,6 @@ cvat-ui/dist
 **/!.yarn/versions
 
 # Ignore environment file
-.env
+.env*
+!.env.example
 .setup_state/

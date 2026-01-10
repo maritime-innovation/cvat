@@ -48,7 +48,6 @@ fi
 # User-configurable variables (defaults)
 ############################################
 CVAT_DIR="${CVAT_DIR:-$HOME/cvat}"
-CVAT_VERSION_TAG="${CVAT_VERSION_TAG:-v2.54.0}"
 CVAT_HOST="${CVAT_HOST:-localhost}"
 
 # Git repo/ref to deploy from (fork + branch)
